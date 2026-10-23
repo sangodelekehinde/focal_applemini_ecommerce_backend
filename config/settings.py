@@ -42,6 +42,8 @@ else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # must be a sender address you verified in Brevo
+import os
+STORE_NAME = os.environ.get("STORE_NAME", "Focal Store")
 DEFAULT_FROM_EMAIL = f"{STORE_NAME} <{os.environ.get('EMAIL_FROM', 'noreply@example.com')}>"
 
 
