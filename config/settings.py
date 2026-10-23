@@ -26,27 +26,23 @@ from dotenv import load_dotenv
 load_dotenv(BASE_DIR / ".env")
 
 PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY")
-FRONTEND_URL = "http://localhost:5173"  # where Paystack sends the user back after paying
+# FRONTEND_URL = "http://localhost:5173"  # where Paystack sends the user back after paying
 
 
 # ---- #
 
 # ---- Email (Gmail) ----
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 465          # was 587
-EMAIL_USE_SSL = True      # new
-EMAIL_USE_TLS = False     # was True (never set both to True)
-EMAIL_TIMEOUT = 20        # new: give up after 20 seconds instead of waiting forever
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+# ---- Email: Brevo (works on Render, unlike Gmail SMTP) ----
+if os.environ.get("BREVO_API_KEY"):
+    EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
+    from django.utils.html import escape
+    ANYMAIL = {"BREVO_API_KEY": os.environ["BREVO_API_KEY"]}
+else:
+    # no key (your PC): print emails in the terminal instead
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
-STORE_NAME = "Focal"  # change to your store's name
-DEFAULT_FROM_EMAIL = f"{STORE_NAME} <{EMAIL_HOST_USER}>"
-
-# ---- Delivery ----
-DELIVERY_DAYS = 5  # estimated delivery = payment date + 5 days
-TIME_ZONE = "Africa/Lagos"  # so "today" is Lagos time
+# must be a sender address you verified in Brevo
+DEFAULT_FROM_EMAIL = f"{STORE_NAME} <{os.environ.get('EMAIL_FROM', 'noreply@example.com')}>"
 
 
 
@@ -57,12 +53,10 @@ TIME_ZONE = "Africa/Lagos"  # so "today" is Lagos time
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-h9adi8-ufsgrw=kgi2d#xrw!buf%&%f=$zw4^*1j#pyu%z#1p*'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+# On Render these come from environment variables. On your PC the defaults are used.
+SECRET_KEY = os.environ.get("SECRET_KEY", "paste-your-current-local-key-here")
+DEBUG = os.environ.get("DEBUG", "True") == "True"
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", ".onrender.com"]
 
 
 # Application definition
@@ -74,6 +68,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "cloudinary_storage",
+    "cloudinary",
+    "anymail",
     'rest_framework',
     'corsheaders',
     'store',
@@ -87,6 +84,7 @@ PASSWORD_RESET_TIMEOUT = 3600
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.security.SecurityMiddleware',
+    "whitenoise.middleware.WhiteNoiseMiddleware", # for render
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -95,10 +93,20 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",   # your Vite dev server
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:5173",   # your Vite dev server
    
-]
+# ]
+
+# The address of your React site (set on Render after Vercel gives you one).
+# No slash at the end!
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+CORS_ALLOWED_ORIGINS = ["http://localhost:5173", FRONTEND_URL]
+
+# Render serves your site over HTTPS through a proxy. These two lines make
+# Django admin login work there.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+CSRF_TRUSTED_ORIGINS = ["https://*.onrender.com"]
 
 
 REST_FRAMEWORK = {
@@ -141,11 +149,23 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+
+# render database
+
+import dj_database_url
+
+# On Render, DATABASE_URL points to Postgres. On your PC it falls back to SQLite.
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    "default": dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+    )
 }
 
 
@@ -192,4 +212,30 @@ STATIC_URL = 'static/'
 import os
 
 MEDIA_URL = '/media/'
+
+# for render
+
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+MEDIA_URL = "/media/"
+
+# Product images: Cloudinary on Render, your normal media folder on your PC
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": os.environ.get("CLOUDINARY_CLOUD_NAME"),
+    "API_KEY": os.environ.get("CLOUDINARY_API_KEY"),
+    "API_SECRET": os.environ.get("CLOUDINARY_API_SECRET"),
+}
+USE_CLOUDINARY = bool(CLOUDINARY_STORAGE["CLOUD_NAME"])
+
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"
+        if USE_CLOUDINARY
+        else "django.core.files.storage.FileSystemStorage"
+    },
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
+
+# end for render
+
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
