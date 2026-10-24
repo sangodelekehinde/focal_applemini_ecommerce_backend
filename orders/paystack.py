@@ -8,6 +8,12 @@ HEADERS = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
 
 def start_payment(order, email):
     """Ask Paystack for a payment link. Returns the link, or None if it failed."""
+
+    # a missing key is the most common cause, so check it first
+    if not settings.PAYSTACK_SECRET_KEY:
+        print("PAYSTACK ERROR: PAYSTACK_SECRET_KEY is missing")
+        return None
+
     try:
         res = requests.post(
             "https://api.paystack.co/transaction/initialize",
@@ -21,11 +27,15 @@ def start_payment(order, email):
             },
             timeout=20,
         ).json()
-    except (requests.RequestException, ValueError):
+    except (requests.RequestException, ValueError) as error:
+        print("PAYSTACK ERROR: request failed:", error)
         return None
 
     if res.get("status"):
         return res["data"]["authorization_url"]
+
+    # NEW: print the reason Paystack gave (this never includes your key)
+    print("PAYSTACK ERROR: refused:", res.get("message"))
     return None
 
 
