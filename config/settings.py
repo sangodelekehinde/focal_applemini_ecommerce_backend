@@ -44,6 +44,8 @@ else:
 # must be a sender address you verified in Brevo
 import os
 STORE_NAME = os.environ.get("STORE_NAME", "Focal Store")
+# ---- Delivery ----
+DELIVERY_DAYS = 5  # estimated delivery = payment date + 5 days
 DEFAULT_FROM_EMAIL = f"{STORE_NAME} <{os.environ.get('EMAIL_FROM', 'noreply@example.com')}>"
 
 
