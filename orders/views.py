@@ -88,11 +88,13 @@ class CheckoutView(APIView):
 
 
 class VerifyPaymentView(APIView):
+    
     permission_classes = [IsAuthenticated]
 
     def get(self, request, reference):
         # only the owner can verify their own order
         order = get_object_or_404(Order, reference=reference, user=request.user)
+        
 
         if order.is_paid:  # already confirmed earlier (also stops a second email)
             return Response({"status": "success"})
@@ -105,8 +107,13 @@ class VerifyPaymentView(APIView):
             order.save()
             TrackingEvent.objects.create(order=order, status="paid", note="Payment received")
 
-            send_receipt(order)  # email the receipt (a failed email never breaks the payment)
-
+            # send_receipt(order)  # email the receipt (a failed email never breaks the payment)
+                        # a problem with the receipt must never break the payment
+            try:
+                send_receipt(order)
+            except Exception as error:
+                print("RECEIPT ERROR:", repr(error))
+                
             return Response({"status": "success"})
 
         return Response({"status": "failed"}, status=400)

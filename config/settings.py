@@ -241,3 +241,19 @@ STORAGES = {
 # end for render
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
+
+# Print server errors (with the full explanation) in the Render logs
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}
